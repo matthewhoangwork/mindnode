@@ -64,6 +64,14 @@ function RootLayout() {
   const setTree = (id, updater) => setLibrary((lib) => lib ? lib.map((d) =>
     d.id === id ? { ...d, edited: 'Edited just now', tree: typeof updater === 'function' ? updater(d.tree) : updater } : d) : lib);
 
+  const setCategory = async (id, category) => {
+    setLibrary((lib) => lib ? lib.map((d) => d.id === id ? { ...d, category } : d) : lib);
+    if (folder) {
+      const doc = (library || []).find((d) => d.id === id);
+      if (doc) { try { await writeMindmap(folder, id, { ...doc, category }); } catch (e) { setFsError(e.message); } }
+    }
+  };
+
   const newMap = async () => {
     const id = 'd' + Date.now();
     const doc = { id, edited: 'Just now', tree: { id: 'r' + Date.now(), label: 'New Mindmap', children: [] } };
@@ -96,7 +104,7 @@ function RootLayout() {
   const ctx = {
     library, folder, folderName, fsError, trash, trashOpen,
     setTrashOpen, onChooseFolder, onChangeFolder,
-    setTree, newMap, deleteMap, restoreMap, purgeMap, emptyTrashFn,
+    setTree, setCategory, newMap, deleteMap, restoreMap, purgeMap, emptyTrashFn,
   };
 
   return (
@@ -114,7 +122,7 @@ function GalleryPage() {
   const {
     library, folderName, fsError, trash, trashOpen,
     setTrashOpen, onChooseFolder, onChangeFolder,
-    newMap, deleteMap, restoreMap, purgeMap, emptyTrashFn,
+    setCategory, newMap, deleteMap, restoreMap, purgeMap, emptyTrashFn,
   } = useLib();
 
   useEffect(() => { document.title = 'MindNode'; }, []);
@@ -138,6 +146,7 @@ function GalleryPage() {
       onOpen={handleOpen}
       onNew={handleNew}
       onDelete={deleteMap}
+      onSetCategory={setCategory}
       folderName={folderName}
       onChooseFolder={onChooseFolder}
       onChangeFolder={onChangeFolder}

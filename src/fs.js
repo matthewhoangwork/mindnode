@@ -93,7 +93,7 @@ export async function listMindmaps(folder) {
       const file = await entry.getFile();
       const text = await file.text();
       const data = JSON.parse(text);
-      out.push({ id: entry.name.replace(/\.mindmap\.json$/, ''), edited: data.edited || '', tree: data.tree });
+      out.push({ id: entry.name.replace(/\.mindmap\.json$/, ''), edited: data.edited || '', tree: data.tree, category: data.category || null });
     } catch (e) {
       console.warn('failed to read', entry.name, e);
     }
@@ -110,7 +110,9 @@ export async function readMindmap(folder, id) {
 export async function writeMindmap(folder, id, doc) {
   const fileHandle = await folder.getFileHandle(`${id}.mindmap.json`, { create: true });
   const writable = await fileHandle.createWritable();
-  await writable.write(JSON.stringify({ edited: doc.edited, tree: doc.tree }, null, 2));
+  const payload = { edited: doc.edited, tree: doc.tree };
+  if (doc.category) payload.category = doc.category;
+  await writable.write(JSON.stringify(payload, null, 2));
   await writable.close();
 }
 

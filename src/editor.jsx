@@ -101,7 +101,7 @@ function EditorMinimap({ tree, pos, colors, view, canvasRef, onNavigate }) {
 
 export function Editor({ doc, setTree, onClose }) {
   const tree = doc.tree;
-  const [sel, setSel] = useState(tree.id);
+  const [sel, setSel] = useState(null);
   const [editing, setEditing] = useState(null);
   const [panel, setPanel] = useState(null); // null | 'inspector' | 'markdown'
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });

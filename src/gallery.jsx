@@ -1,5 +1,5 @@
 // gallery.jsx — library page: minimap thumbnails + card grid
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   FONT, BG_CREAM, BRANCH_INK, computeLayout, computeColors, walkSubtree, countNodes,
 } from './engine.jsx';
@@ -38,9 +38,95 @@ export function MiniMap({ tree, w = 248, h = 150 }) {
   );
 }
 
+// ── Category helpers ──────────────────────────────────────────────
+const CAT_PALETTE = ['#5B8DEF','#7CBF7C','#E6A84B','#B47FD6','#E06B6B','#4BBFBF','#E08BBF','#9E9E9E'];
+function catColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return CAT_PALETTE[h % CAT_PALETTE.length];
+}
+
+function CategoryBadge({ category, onClick }) {
+  if (!category) return (
+    <button onClick={onClick} style={{
+      border: '1px dashed rgba(61,58,55,0.25)', borderRadius: 6, padding: '2px 7px',
+      fontSize: 10.5, fontWeight: 600, cursor: 'pointer', background: 'transparent',
+      color: 'rgba(61,58,55,0.4)', fontFamily: 'inherit', lineHeight: 1.4,
+    }}>+ category</button>
+  );
+  const c = catColor(category);
+  return (
+    <button onClick={onClick} style={{
+      border: 'none', borderRadius: 6, padding: '2px 7px',
+      fontSize: 10.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1.4,
+      background: c + '22', color: c,
+    }}>{category}</button>
+  );
+}
+
+function CategoryMenu({ current, existing, onSelect, onClose }) {
+  const ref = useRef(null);
+  const inputRef = useRef(null);
+  const [val, setVal] = useState('');
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const commit = (v) => { const t = v.trim(); if (t) onSelect(t); };
+  const suggestions = existing.filter((c) => c !== current && c.toLowerCase().includes(val.toLowerCase()));
+
+  return (
+    <div ref={ref} style={{
+      position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, zIndex: 50,
+      background: 'linear-gradient(160deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.88) 100%)',
+      backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+      border: '1px solid rgba(255,255,255,0.70)',
+      boxShadow: '0 8px 24px rgba(61,58,55,0.14)',
+      borderRadius: 12, padding: 6, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 160,
+    }}>
+      <input
+        ref={inputRef}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(val); }
+          if (e.key === 'Escape') onClose();
+        }}
+        placeholder="Type & press Enter…"
+        style={{
+          border: '1px solid rgba(61,58,55,0.15)', borderRadius: 7, padding: '5px 9px',
+          fontSize: 12, fontFamily: 'inherit', outline: 'none', background: 'rgba(255,255,255,0.7)',
+          color: '#3D3A37', marginBottom: 2,
+        }}
+      />
+      {suggestions.map((c) => (
+        <button key={c} onClick={() => onSelect(c)} style={{
+          border: 'none', borderRadius: 7, padding: '5px 10px', cursor: 'pointer',
+          fontFamily: 'inherit', fontSize: 12, fontWeight: 700, textAlign: 'left',
+          background: c === current ? catColor(c) + '22' : 'transparent',
+          color: catColor(c),
+        }}>{c}</button>
+      ))}
+      {current && (
+        <button onClick={() => onSelect(null)} style={{
+          border: 'none', borderRadius: 7, padding: '5px 10px', background: 'transparent',
+          fontSize: 12, fontWeight: 600, color: 'rgba(61,58,55,0.45)', cursor: 'pointer',
+          textAlign: 'left', fontFamily: 'inherit', marginTop: 2,
+        }}>✕ Remove</button>
+      )}
+    </div>
+  );
+}
+
 // ── Card ────────────────────────────────────────────────────────
-function MapCard({ doc, onOpen, onDelete }) {
+function MapCard({ doc, onOpen, onDelete, onSetCategory, allCategories }) {
   const [hover, setHover] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
@@ -57,26 +143,38 @@ function MapCard({ doc, onOpen, onDelete }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, lineHeight: 1, padding: 0,
           }}>×</button>
       )}
-      <button onClick={() => onOpen(doc.id)}
-        style={{
-          textAlign: 'left', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent',
-          fontFamily: FONT, display: 'flex', flexDirection: 'column',
-        }}>
-        <div style={{
-          borderRadius: 16, overflow: 'hidden', background: '#FFFFFF',
-          border: '1px solid rgba(61,58,55,0.10)',
-          boxShadow: hover ? '0 10px 26px rgba(61,58,55,0.14)' : '0 2px 6px rgba(61,58,55,0.08)',
-          transition: 'box-shadow .14s, transform .14s',
-        }}>
+      <div style={{
+        borderRadius: 16, overflow: 'visible', background: '#FFFFFF',
+        border: '1px solid rgba(61,58,55,0.10)',
+        boxShadow: hover ? '0 10px 26px rgba(61,58,55,0.14)' : '0 2px 6px rgba(61,58,55,0.08)',
+        transition: 'box-shadow .14s',
+      }}>
+        <button onClick={() => onOpen(doc.id)}
+          style={{
+            display: 'block', width: '100%', textAlign: 'left', padding: 0,
+            border: 'none', cursor: 'pointer', background: 'transparent', fontFamily: FONT,
+            borderRadius: '16px 16px 0 0', overflow: 'hidden',
+          }}>
           <div style={{ background: BG_CREAM, borderBottom: '1px solid rgba(61,58,55,0.06)' }}>
             <MiniMap tree={doc.tree} />
           </div>
-          <div style={{ padding: '12px 15px 14px' }}>
+          <div style={{ padding: '12px 15px 10px' }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#3D3A37', marginBottom: 2 }}>{doc.tree.label}</div>
             <div style={{ fontSize: 12, color: 'rgba(61,58,55,0.5)' }}>{countNodes(doc.tree)} nodes · {doc.edited}</div>
           </div>
+        </button>
+        <div style={{ padding: '0 15px 12px', position: 'relative', display: 'inline-block' }}>
+          <CategoryBadge category={doc.category} onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }} />
+          {menuOpen && (
+            <CategoryMenu
+              current={doc.category}
+              existing={allCategories}
+              onSelect={(cat) => { onSetCategory(doc.id, cat); setMenuOpen(false); }}
+              onClose={() => setMenuOpen(false)}
+            />
+          )}
         </div>
-      </button>
+      </div>
     </div>
   );
 }
@@ -120,11 +218,17 @@ function TrashRow({ item, onRestore, onPurge }) {
 const btnSm = { border: 'none', borderRadius: 7, padding: '5px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' };
 
 // ── Gallery page ────────────────────────────────────────────────
-export function Gallery({ library, onOpen, onNew, onDelete, folderName, onChooseFolder, onChangeFolder, fsError,
+export function Gallery({ library, onOpen, onNew, onDelete, onSetCategory, folderName, onChooseFolder, onChangeFolder, fsError,
   trash, trashOpen, onTrashToggle, onRestore, onPurge, onEmptyTrash }) {
   const [q, setQ] = useState('');
+  const [filterCat, setFilterCat] = useState(null);
   const [folderMenuOpen, setFolderMenuOpen] = useState(false);
-  const shown = library.filter((d) => d.tree.label.toLowerCase().includes(q.toLowerCase()));
+  const shown = library.filter((d) => {
+    const matchQ = d.tree.label.toLowerCase().includes(q.toLowerCase());
+    const matchCat = filterCat === null || d.category === filterCat;
+    return matchQ && matchCat;
+  });
+  const usedCategories = [...new Set(library.map((d) => d.category).filter(Boolean))];
   const glassStyle = {
     display: 'flex', alignItems: 'center', gap: 4,
     padding: '0 8px', height: 44, borderRadius: 26,
@@ -234,12 +338,32 @@ export function Gallery({ library, onOpen, onNew, onDelete, folderName, onChoose
           </>
         ) : (
           <>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(61,58,55,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
-              {shown.length} {shown.length === 1 ? 'MindNode' : 'MindNode'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(61,58,55,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 4 }}>
+                {shown.length} {shown.length === 1 ? 'Mindmap' : 'Mindmaps'}
+              </div>
+              {usedCategories.length > 0 && (
+                <>
+                  <button onClick={() => setFilterCat(null)} style={{
+                    border: 'none', borderRadius: 20, padding: '4px 12px', cursor: 'pointer',
+                    fontFamily: FONT, fontSize: 11.5, fontWeight: 700,
+                    background: filterCat === null ? 'rgba(61,58,55,0.15)' : 'rgba(61,58,55,0.07)',
+                    color: filterCat === null ? '#3D3A37' : 'rgba(61,58,55,0.55)',
+                  }}>All</button>
+                  {usedCategories.map((c) => (
+                    <button key={c} onClick={() => setFilterCat(filterCat === c ? null : c)} style={{
+                      border: 'none', borderRadius: 20, padding: '4px 12px', cursor: 'pointer',
+                      fontFamily: FONT, fontSize: 11.5, fontWeight: 700,
+                      background: filterCat === c ? catColor(c) + '33' : catColor(c) + '15',
+                      color: catColor(c),
+                    }}>{c}</button>
+                  ))}
+                </>
+              )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(248px, 1fr))', gap: 22 }}>
               <NewCard onNew={onNew} />
-              {shown.map((d) => <MapCard key={d.id} doc={d} onOpen={onOpen} onDelete={onDelete} />)}
+              {shown.map((d) => <MapCard key={d.id} doc={d} onOpen={onOpen} onDelete={onDelete} onSetCategory={onSetCategory} allCategories={usedCategories} />)}
             </div>
           </>
         )}
