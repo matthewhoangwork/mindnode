@@ -111,12 +111,15 @@ export function computeLayout(root, cx, cy, ringGap, isInline) {
   const inline = isInline || (() => false);
   const INLINE_GAP = 0.62; // inline notes nest closer than a full ring step, but clear the parent box
   function leaves(n) {
-    if (!n.children || !n.children.length || n.collapsed) { n._leaves = 1; return 1; }
+    if (!n.children || !n.children.length || n.collapsed) {
+      n._leaves = inline(n) ? 0.55 : 1;
+      return n._leaves;
+    }
     n._leaves = n.children.reduce((s, c) => s + leaves(c), 0);
     return n._leaves;
   }
   leaves(root);
-  const leafGap = ringGap * 0.6;
+  const leafGap = ringGap * 0.5;
   const totalH = root._leaves * leafGap;
   const pos = { [root.id]: { x: cx, y: cy, angle: 0, depth: 0 } };
   // x accumulates per-node so inline notes advance less than a full ring step
