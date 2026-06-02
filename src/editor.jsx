@@ -1,13 +1,14 @@
 // editor.jsx — Editor shell: canvas, nodes, connectors, inspector, toolbar
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { FONT, BG_CREAM, BRANCH_INK, computeLayout, computeColors, handDrawnCurve, walkSubtree, findNode, cloneTree } from './engine.jsx';
+import { FONT, BG_CREAM, BRANCH_INK, computeLayout, computeColors, handDrawnCurve, walkSubtree, findNode, cloneTree, diffTrees } from './engine.jsx';
 import {
   NodeView, Inspector, TBtn, TSep, IconPlus,
-  IconChevron, IconBack, IconSidebar,
+  IconChevron, IconBack, IconSidebar, IconHistory,
 } from './app.jsx';
 import { MarkdownSidebar } from './sidebar.jsx';
+import { listVersions, readVersionTree, saveVersion } from './fs.js';
 
-const VW = 2400, VH = 1800, CX = 300, CY = VH / 2, RING = 380;
+const VW = 2400, VH = 2400, CX = 300, CY = VH / 2, RING = 380;
 
 const MM_W = 180, MM_H = 120;
 
@@ -144,14 +145,185 @@ function EditorMinimap({ tree, pos, colors, view, canvasRef, onNavigate }) {
   );
 }
 
-export function Editor({ doc, setTree, onClose }) {
+// ── Version-time formatting ──────────────────────────────────────
+function fmtVersionTime(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (sameDay) return `Today, ${time}`;
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return `Yesterday, ${time}`;
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+}
+
+// ── History panel (Google-Docs-style version list) ───────────────
+const DIFF_LEGEND = [
+  ['added',   '#4FA86A', 'Added since'],
+  ['removed', '#D9534F', 'Removed since'],
+  ['changed', '#D9913F', 'Edited since'],
+  ['moved',   '#5B8DD9', 'Moved since'],
+];
+
+// A small colored dot + label header for a diff category group.
+function DiffGroupHeader({ col, label, count }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '10px 0 5px' }}>
+      <span style={{ width: 9, height: 9, borderRadius: 3, background: col, flexShrink: 0 }} />
+      <span style={{ fontSize: 11, fontWeight: 700, color: col, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{label}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(61,58,55,0.4)' }}>{count}</span>
+    </div>
+  );
+}
+
+// One row for an added / removed / moved node (label only).
+function DiffItem({ children, strike }) {
+  return (
+    <div style={{
+      fontSize: 12, color: strike ? 'rgba(61,58,55,0.55)' : '#3D3A37',
+      textDecoration: strike ? 'line-through' : 'none',
+      padding: '3px 0 3px 16px', lineHeight: 1.4, wordBreak: 'break-word',
+    }}>{children}</div>
+  );
+}
+
+function DiffSummary({ diff }) {
+  if (!diff) return null;
+  const total = diff.added.length + diff.removed.length + diff.changed.length + diff.moved.length;
+  return (
+    <div style={{ padding: '10px 12px 12px', borderBottom: '1px solid rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.18)', maxHeight: '42%', overflowY: 'auto' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(61,58,55,0.55)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        Changes vs. current
+      </div>
+
+      {total === 0 ? (
+        <div style={{ fontSize: 12.5, color: 'rgba(61,58,55,0.6)', marginTop: 8 }}>Identical to the current version.</div>
+      ) : (
+        <React.Fragment>
+          {/* Added — exist in current, not in this version */}
+          {diff.added.length > 0 && (
+            <React.Fragment>
+              <DiffGroupHeader col="#4FA86A" label="Added since" count={diff.added.length} />
+              {diff.added.map((a) => <DiffItem key={a.id}>{a.label || '(note)'}</DiffItem>)}
+            </React.Fragment>
+          )}
+
+          {/* Removed — exist in this version, gone in current */}
+          {diff.removed.length > 0 && (
+            <React.Fragment>
+              <DiffGroupHeader col="#D9534F" label="Removed since" count={diff.removed.length} />
+              {diff.removed.map((r) => <DiffItem key={r.id} strike>{r.label || '(note)'}</DiffItem>)}
+            </React.Fragment>
+          )}
+
+          {/* Edited — label and/or body changed */}
+          {diff.changed.length > 0 && (
+            <React.Fragment>
+              <DiffGroupHeader col="#D9913F" label="Edited since" count={diff.changed.length} />
+              {diff.changed.map((c) => (
+                <div key={c.id} style={{ padding: '4px 0 5px 16px', borderBottom: '1px dashed rgba(61,58,55,0.10)', marginBottom: 2 }}>
+                  {c.from.label !== c.to.label ? (
+                    <div style={{ fontSize: 12, lineHeight: 1.45 }}>
+                      <span style={{ color: '#D9534F', textDecoration: 'line-through' }}>{c.from.label || '∅'}</span>
+                      <span style={{ color: 'rgba(61,58,55,0.4)' }}> → </span>
+                      <span style={{ color: '#4FA86A', fontWeight: 600 }}>{c.to.label || '∅'}</span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#3D3A37' }}>{c.to.label || '(note)'}</div>
+                  )}
+                  {c.from.body !== c.to.body && (
+                    <div style={{ marginTop: 3 }}>
+                      {c.from.body && (
+                        <div style={{ fontSize: 11, lineHeight: 1.4, color: '#D9534F', textDecoration: 'line-through', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{c.from.body}</div>
+                      )}
+                      {c.to.body && (
+                        <div style={{ fontSize: 11, lineHeight: 1.4, color: '#4FA86A', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{c.to.body}</div>
+                      )}
+                      {!c.from.body && !c.to.body && (
+                        <div style={{ fontSize: 10.5, color: 'rgba(61,58,55,0.5)' }}>body edited</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </React.Fragment>
+          )}
+
+          {/* Moved — same content, different parent */}
+          {diff.moved.length > 0 && (
+            <React.Fragment>
+              <DiffGroupHeader col="#5B8DD9" label="Moved since" count={diff.moved.length} />
+              {diff.moved.map((m) => <DiffItem key={m.id}>{m.label || '(note)'}</DiffItem>)}
+            </React.Fragment>
+          )}
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+function HistoryPanel({ versions, preview, diff, onSaveNamed, onPreview, onRestore, onExitPreview }) {
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ height: 46, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 14px', borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(61,58,55,0.55)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Version history</span>
+        <button onClick={onSaveNamed} title="Save a named version now" style={{
+          height: 26, padding: '0 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+          background: 'rgba(217,119,86,0.18)', color: '#CF6526', fontFamily: FONT, fontSize: 11.5, fontWeight: 700,
+        }}>+ Save</button>
+      </div>
+      {preview && <DiffSummary diff={diff} />}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 8px 12px' }}>
+        {versions.length === 0 ? (
+          <div style={{ padding: '24px 14px', fontSize: 12.5, color: 'rgba(61,58,55,0.5)', lineHeight: 1.55 }}>
+            No saved versions yet. Versions are captured automatically a few seconds after you stop editing, or click <strong>+ Save</strong> for a named checkpoint.
+          </div>
+        ) : versions.map((v) => {
+          const on = preview && preview.ts === v.ts;
+          return (
+            <div key={v.ts}
+              onClick={() => (on ? onExitPreview() : onPreview(v.ts))}
+              style={{
+                display: 'flex', flexDirection: 'column', gap: 2, padding: '9px 11px', marginBottom: 4,
+                borderRadius: 10, cursor: 'pointer',
+                background: on ? 'rgba(217,119,86,0.20)' : 'transparent',
+                boxShadow: on ? 'inset 0 0 0 1.5px rgba(217,119,86,0.55)' : 'none',
+              }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#3D3A37' }}>
+                {v.label || fmtVersionTime(v.ts)}
+              </span>
+              {v.label && <span style={{ fontSize: 11, color: 'rgba(61,58,55,0.5)' }}>{fmtVersionTime(v.ts)}</span>}
+              {on && (
+                <button onClick={(e) => { e.stopPropagation(); onRestore(); }} style={{
+                  marginTop: 6, height: 28, borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: '#D97756', color: '#fff', fontFamily: FONT, fontSize: 12, fontWeight: 700,
+                }}>Restore this version</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function Editor({ doc, folder, setTree, onClose }) {
   const tree = doc.tree;
   const [sel, setSel] = useState(null);
   const [editing, setEditing] = useState(null);
-  const [panel, setPanel] = useState(null); // null | 'inspector' | 'markdown'
+  const [panel, setPanel] = useState(null); // null | 'inspector' | 'markdown' | 'history'
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const canvasRef = useRef(null);
   const pan = useRef(null);
+
+  // ── Version history ──
+  const [versions, setVersions] = useState([]);      // [{ ts, label }] newest first
+  const [preview, setPreview] = useState(null);      // { ts, tree } when previewing a past version
+  const refreshVersions = useCallback(() => {
+    listVersions(folder, doc.id).then(setVersions).catch(() => {});
+  }, [folder, doc.id]);
+  useEffect(() => { refreshVersions(); }, [refreshVersions]);
 
   // A node with no title/label but with a description is an "inline" note.
   // It keeps its place in the layout (so spacing/connectors stay correct) but is
@@ -159,10 +331,92 @@ export function Editor({ doc, setTree, onClose }) {
   // runs parent → (label) → child as one continuous connection.
   const isInline = (n) => !(n.label && n.label.trim()) && !!(n.body && n.body.trim());
 
-  const pos = useMemo(() => computeLayout(tree, CX, CY, RING, isInline), [tree]);
-  const colors = useMemo(() => computeColors(tree), [tree]);
+  // While previewing a past version, the canvas renders that snapshot (read-only).
+  const displayTree = preview ? preview.tree : tree;
+
+  // Diff between the previewed (old) version and the current tree. On the old
+  // canvas: `removed` = deleted since, `changed` = edited since, `moved` = reparented.
+  // `added` exist only in current, so they're listed in the panel, not drawn here.
+  const diff = useMemo(() => (preview ? diffTrees(preview.tree, tree) : null), [preview, tree]);
+
+  const pos = useMemo(() => computeLayout(displayTree, CX, CY, RING, isInline), [displayTree]);
+  const colors = useMemo(() => computeColors(displayTree), [displayTree]);
   const posRef = useRef(pos);
   posRef.current = pos;
+
+  // ── Undo / redo history ──
+  // Snapshots of the tree captured *before* each mutation. Cmd+Z pops `past`,
+  // Cmd+Shift+Z (or Cmd+Y) pops `future`. Snapshots are deep clones so later
+  // edits don't mutate them.
+  const treeRef = useRef(tree);
+  treeRef.current = tree;
+  const past = useRef([]);
+  const future = useRef([]);
+  const skipSnapshot = useRef(false); // set during undo/redo so they don't self-record
+
+  const pushHistory = () => {
+    if (skipSnapshot.current) return;
+    past.current.push(cloneTree(treeRef.current));
+    if (past.current.length > 100) past.current.shift();
+    future.current = []; // a fresh edit invalidates the redo stack
+  };
+
+  const undo = useCallback(() => {
+    if (!past.current.length) return;
+    const prev = past.current.pop();
+    future.current.push(cloneTree(treeRef.current));
+    skipSnapshot.current = true;
+    setTree(() => prev);
+    setEditing(null);
+    setTimeout(() => { skipSnapshot.current = false; }, 0);
+  }, [setTree]);
+
+  const redo = useCallback(() => {
+    if (!future.current.length) return;
+    const next = future.current.pop();
+    past.current.push(cloneTree(treeRef.current));
+    skipSnapshot.current = true;
+    setTree(() => next);
+    setEditing(null);
+    setTimeout(() => { skipSnapshot.current = false; }, 0);
+  }, [setTree]);
+
+  // ── Auto-version on idle ──
+  // 3s after the last change settles, snapshot the tree. saveVersion() dedups
+  // against the latest snapshot, so no-op renders don't spam history.
+  const restoring = useRef(false); // suppress auto-save right after a restore
+  useEffect(() => {
+    if (preview) return;             // don't snapshot while previewing
+    if (restoring.current) { restoring.current = false; return; }
+    const t = setTimeout(() => {
+      saveVersion(folder, doc.id, treeRef.current).then((ts) => { if (ts) refreshVersions(); }).catch(() => {});
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [tree, folder, doc.id, preview, refreshVersions]);
+
+  const saveNamedVersion = useCallback(() => {
+    const label = (window.prompt('Name this version (optional):') || '').trim() || null;
+    saveVersion(folder, doc.id, treeRef.current, label).then((ts) => {
+      // even if dedup skips a file write, force a labelled entry by retrying when null
+      if (ts || label) refreshVersions();
+    }).catch(() => {});
+  }, [folder, doc.id, refreshVersions]);
+
+  const previewVersion = useCallback((ts) => {
+    readVersionTree(folder, doc.id, ts).then((t) => { if (t) setPreview({ ts, tree: t }); }).catch(() => {});
+  }, [folder, doc.id]);
+
+  const restoreVersion = useCallback(() => {
+    if (!preview) return;
+    pushHistory();                    // make the restore itself undoable
+    restoring.current = true;
+    setTree(() => cloneTree(preview.tree));
+    setPreview(null);
+    setEditing(null);
+    setSel(null);
+  }, [preview, setTree]);
+
+  const exitPreview = useCallback(() => setPreview(null), []);
 
   const fit = useCallback(() => {
     const el = canvasRef.current; if (!el) return;
@@ -180,7 +434,7 @@ export function Editor({ doc, setTree, onClose }) {
     return () => window.removeEventListener('resize', fit);
   }, [fit]);
 
-  const update = (fn) => setTree((t) => { const n = cloneTree(t); fn(n); return n; });
+  const update = (fn) => { pushHistory(); setTree((t) => { const n = cloneTree(t); fn(n); return n; }); };
   const setNodeSize = (size) => {
     if (!sel) return;
     update((root) => { const hit = findNode(root, sel); if (hit) hit.node.size = size; });
@@ -244,6 +498,14 @@ export function Editor({ doc, setTree, onClose }) {
 
   useEffect(() => {
     const onKey = (e) => {
+      // Undo / redo — works regardless of edit/selection state
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
+      if (preview) { if (e.key === 'Escape') exitPreview(); return; } // read-only while previewing
       if (editing) return;
       if (e.target.contentEditable === 'true') return;
       // Cmd/Ctrl+Enter — edit the selected note
@@ -289,7 +551,7 @@ export function Editor({ doc, setTree, onClose }) {
 
   const edges = [];
   const inlineLabelPos = [];
-  walkSubtree(tree, (n) => {
+  walkSubtree(displayTree, (n) => {
     if (n.collapsed) return;
     (n.children || []).forEach((c) => edges.push([n, c]));
     if (isInline(n) && pos[n.id]) {
@@ -335,8 +597,35 @@ export function Editor({ doc, setTree, onClose }) {
         borderBottom: '1px solid rgba(255,255,255,0.30)',
         boxShadow: '0 8px 32px rgba(61,58,55,0.12), 0 2px 8px rgba(61,58,55,0.06), inset 0 1.5px 0 rgba(255,255,255,0.80), inset 0 -1px 0 rgba(255,255,255,0.20)',
       }}>
-        <TBtn title="Panel" active={!!panel} onClick={() => setPanel((p) => (p ? null : 'inspector'))}><IconSidebar /></TBtn>
+        <TBtn title="Version history" active={panel === 'history'} onClick={() => setPanel((p) => (p === 'history' ? null : 'history'))}><IconHistory /></TBtn>
+        <TSep />
+        <TBtn title="Panel" active={panel === 'inspector' || panel === 'markdown'} onClick={() => setPanel((p) => ((p === 'inspector' || p === 'markdown') ? null : 'inspector'))}><IconSidebar /></TBtn>
       </div>
+
+      {/* Version-preview banner */}
+      {preview && (
+        <div style={{
+          position: 'absolute', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: 19,
+          display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px 8px 16px', borderRadius: 16,
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.25) 100%)',
+          backdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+          WebkitBackdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+          border: '1px solid rgba(255,255,255,0.70)',
+          boxShadow: '0 8px 32px rgba(61,58,55,0.14), inset 0 1.5px 0 rgba(255,255,255,0.80)',
+        }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#3D3A37' }}>
+            Previewing version · {fmtVersionTime(preview.ts)}
+          </span>
+          <button onClick={restoreVersion} style={{
+            height: 28, padding: '0 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
+            background: '#D97756', color: '#fff', fontFamily: FONT, fontSize: 12.5, fontWeight: 700,
+          }}>Restore this version</button>
+          <button onClick={exitPreview} style={{
+            height: 28, padding: '0 12px', borderRadius: 9, border: 'none', cursor: 'pointer',
+            background: 'rgba(61,58,55,0.10)', color: 'rgba(61,58,55,0.7)', fontFamily: FONT, fontSize: 12.5, fontWeight: 700,
+          }}>Exit</button>
+        </div>
+      )}
 
       {/* Body */}
       <div style={{ width: '100%', height: '100%', display: 'flex' }}>
@@ -387,8 +676,7 @@ export function Editor({ doc, setTree, onClose }) {
                   style={{
                     position: 'absolute', left: il.x, top: il.y, transform: 'translate(-50%,-50%)',
                     fontFamily: FONT, fontSize: 14, fontWeight: 400, lineHeight: 1.5, color: '#3D3A37',
-                    maxWidth: 220, textAlign: 'left', whiteSpace: 'pre-wrap',
-                    overflowWrap: 'break-word', wordBreak: 'break-word',
+                    maxWidth: 220, textAlign: 'left', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                     cursor: 'default', zIndex: 3, padding: '5px 11px', borderRadius: 14,
                     background: BG_CREAM, border: 'none',
                     boxShadow: on ? '0 0 0 3px #CF6526' : 'none',
@@ -397,12 +685,13 @@ export function Editor({ doc, setTree, onClose }) {
             })}
             {(() => {
               const out = [];
-              walkSubtree(tree, (n) => {
+              walkSubtree(displayTree, (n) => {
                 const p = pos[n.id]; if (!p) return;
                 if (isInline(n) && editing !== n.id) return; // drawn as on-connector label unless being edited
                 out.push(<NodeView key={n.id} node={n} p={p} color={colors[n.id]}
-                  selected={sel === n.id} editing={editing === n.id}
-                  onSelect={setSel} onStartEdit={setEditing} onCommit={commitLabel}
+                  selected={!preview && sel === n.id} editing={!preview && editing === n.id}
+                  diffStatus={diff ? diff.status[n.id] : null}
+                  onSelect={preview ? () => {} : setSel} onStartEdit={preview ? () => {} : setEditing} onCommit={commitLabel}
                   onAddChild={() => { setSel(n.id); addChild(); }}
                   onAddSibling={() => { setSel(n.id); addSibling(); }} />);
               });
@@ -414,7 +703,7 @@ export function Editor({ doc, setTree, onClose }) {
       </div>
 
       {/* Floating minimap */}
-      <EditorMinimap tree={tree} pos={pos} colors={colors} view={view} canvasRef={canvasRef} onNavigate={setView} />
+      <EditorMinimap tree={displayTree} pos={pos} colors={colors} view={view} canvasRef={canvasRef} onNavigate={setView} />
 
       {/* Floating liquid-glass panel */}
       {panel && (
@@ -429,28 +718,37 @@ export function Editor({ doc, setTree, onClose }) {
           boxShadow: '0 8px 32px rgba(61,58,55,0.12), 0 2px 8px rgba(61,58,55,0.06), inset 0 1.5px 0 rgba(255,255,255,0.80), inset 0 -1px 0 rgba(255,255,255,0.20)',
           overflow: 'hidden',
         }}>
-          {/* Tabs */}
-          <div style={{ height: 46, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
-            padding: '0 10px', borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
-            {[['inspector', 'Inspector'], ['markdown', 'Markdown']].map(([key, label]) => {
-              const on = panel === key;
-              return (
-                <button key={key} onClick={() => setPanel(key)} style={{
-                  height: 28, padding: '0 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                  fontFamily: FONT, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-                  background: on ? 'rgba(255,255,255,0.45)' : 'transparent',
-                  boxShadow: on ? 'inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 4px rgba(61,58,55,0.08)' : 'none',
-                  color: on ? '#CF6526' : 'rgba(61,58,55,0.45)', transition: 'all .14s',
-                }}>{label}</button>
-              );
-            })}
-          </div>
-          {/* Body */}
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: panel === 'inspector' ? 'auto' : 'hidden' }}>
-            {panel === 'inspector'
-              ? <Inspector node={selInfo ? selInfo.node : null} depth={selDepth} onSize={setNodeSize} onNodeStyle={setNodeStyle} />
-              : <MarkdownSidebar tree={tree} onTreeChange={(newRoot) => setTree(() => newRoot)} />}
-          </div>
+          {panel === 'history' ? (
+            <HistoryPanel
+              versions={versions} preview={preview} diff={diff}
+              onSaveNamed={saveNamedVersion} onPreview={previewVersion}
+              onRestore={restoreVersion} onExitPreview={exitPreview} />
+          ) : (
+            <React.Fragment>
+              {/* Tabs */}
+              <div style={{ height: 46, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
+                padding: '0 10px', borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
+                {[['inspector', 'Inspector'], ['markdown', 'Markdown']].map(([key, label]) => {
+                  const on = panel === key;
+                  return (
+                    <button key={key} onClick={() => setPanel(key)} style={{
+                      height: 28, padding: '0 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                      fontFamily: FONT, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                      background: on ? 'rgba(255,255,255,0.45)' : 'transparent',
+                      boxShadow: on ? 'inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 4px rgba(61,58,55,0.08)' : 'none',
+                      color: on ? '#CF6526' : 'rgba(61,58,55,0.45)', transition: 'all .14s',
+                    }}>{label}</button>
+                  );
+                })}
+              </div>
+              {/* Body */}
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: panel === 'inspector' ? 'auto' : 'hidden' }}>
+                {panel === 'inspector'
+                  ? <Inspector node={selInfo ? selInfo.node : null} depth={selDepth} onSize={setNodeSize} onNodeStyle={setNodeStyle} />
+                  : <MarkdownSidebar tree={tree} onTreeChange={(newRoot) => setTree(() => newRoot)} />}
+              </div>
+            </React.Fragment>
+          )}
         </div>
       )}
     </div>

@@ -206,6 +206,7 @@ function EditorPage() {
     <Editor
       key={doc.id}
       doc={doc}
+      folder={folder}
       setTree={(updater) => setTree(id, updater)}
       onClose={() => navigate({ to: '/' })}
     />

@@ -26,6 +26,7 @@ export const IconRecenter= ic(<><circle cx="9" cy="9" r="2"/><path d="M9 2v2.5M9
 export const IconChevron = ic(<><path d="M6 4l5 5-5 5"/></>, 18);
 export const IconShare   = ic(<><path d="M9 11V3M6 5.5L9 2.5l3 3M4 9v5.5h10V9"/></>);
 export const IconBack    = ic(<><path d="M11 4l-5 5 5 5"/></>);
+export const IconHistory = ic(<><path d="M3 9a6 6 0 1 1 1.8 4.3M3 9V5.5M3 9h3.5M9 6v3l2.2 2.2"/></>);
 
 // ── Toolbar button ──────────────────────────────────────────────
 export function TBtn({ children, onClick, disabled, title, active }) {
@@ -63,7 +64,10 @@ function toEditText(label, body) {
   return [titlePart, bodyPart].filter(Boolean).join('\n');
 }
 
-export function NodeView({ node, p, color, selected, editing, onSelect, onStartEdit, onCommit, onAddChild, onAddSibling }) {
+// Diff highlight colors when viewing version history (status from diffTrees).
+const DIFF_COLOR = { removed: '#D9534F', changed: '#D9913F', moved: '#5B8DD9', added: '#4FA86A' };
+
+export function NodeView({ node, p, color, selected, editing, diffStatus, onSelect, onStartEdit, onCommit, onAddChild, onAddSibling }) {
   const inputRef = useRef(null);
   const [hover, setHover] = useState(false);
 
@@ -100,8 +104,7 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === 'Escape') { e.preventDefault(); onCommit(node.id, node.label, node.body || ''); }
-        if (e.key === 'Enter' && e.shiftKey) { /* allow newline */ return; }
-        if (e.key === 'Enter') { e.preventDefault(); doCommit(); }
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); doCommit(); }
       }}
       style={{
         outline: 'none', cursor: 'text', whiteSpace: 'pre-wrap', width: '100%',
@@ -114,7 +117,10 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
 
   const titleBlock = hasLabel ? node.label : null;
   const bodyBlock = hasBody ? (
-    <div style={{ whiteSpace: 'pre-wrap', fontWeight: 400, fontSize: 14, lineHeight: 1.5, color: '#3D3A37', textAlign: 'left', width: '100%' }}>{node.body}</div>
+    <div style={{
+      fontWeight: 400, fontSize: 14, lineHeight: 1.5, color: '#3D3A37', textAlign: 'left', width: '100%',
+      whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+    }}>{node.body}</div>
   ) : null;
 
   const common = {
@@ -127,6 +133,7 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
 
   // ── On-connection (on-line) style ──
   if (onLine) {
+    const dCol = diffStatus ? DIFF_COLOR[diffStatus] : null;
     return (
       <div onMouseDown={(e) => { e.stopPropagation(); onSelect(node.id); }}
         onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(node.id); }}
@@ -134,7 +141,7 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
           ...common, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 * padScale,
           padding: `${3 * padScale}px ${6 * padScale}px`, borderRadius: 12,
           background: selected ? 'rgba(217,119,86,0.22)' : 'transparent',
-          boxShadow: selected ? '0 0 0 1.5px #CF6526' : 'none',
+          boxShadow: dCol ? `0 0 0 2px ${dCol}` : selected ? '0 0 0 1.5px #CF6526' : 'none',
           color: depth === 1 ? color : '#3D3A37', fontWeight: depth === 1 ? 700 : 500,
           textShadow: '0 0 4px #FBF6EC, 0 0 4px #FBF6EC, 0 0 4px #FBF6EC',
           textAlign: 'center',
@@ -150,11 +157,14 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
   else if (depth === 1) style = { bg: 'transparent', fg: '#3D3A37', fw: 700, padV: 9,  padH: 17, border: 'none', radius: ORG_RADIUS.d1 };
   else                  style = { bg: 'transparent', fg: '#3D3A37', fw: 500, padV: 7,  padH: 14, border: 'none', radius: ORG_RADIUS.leaf };
 
-  const ring = selected
-    ? `0 0 0 3px #CF6526`
-    : hover
-      ? `0 0 0 2px rgba(217,119,86,0.7)`
-      : 'none';
+  const diffCol = diffStatus ? DIFF_COLOR[diffStatus] : null;
+  const ring = diffCol
+    ? `0 0 0 3px ${diffCol}`
+    : selected
+      ? `0 0 0 3px #CF6526`
+      : hover
+        ? `0 0 0 2px rgba(217,119,86,0.7)`
+        : 'none';
 
   return (
     <div

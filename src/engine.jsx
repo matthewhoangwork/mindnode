@@ -94,6 +94,49 @@ export function findNode(root, id, parent = null) {
 export function walkSubtree(node, fn) { fn(node); (node.children || []).forEach((c) => walkSubtree(c, fn)); }
 export function countNodes(root) { let n = 0; walkSubtree(root, () => n++); return n; }
 
+// ── Tree diff (by node id) ──────────────────────────────────────
+// Compares an `old` tree against the `current` tree and reports, per node id:
+//   added    — in current, not in old   (created since `old`)
+//   removed  — in old, not in current   (deleted since `old`)
+//   changed  — in both, but label/body differs
+//   moved    — in both, but parent differs
+// Returns { added:[{id,label}], removed:[...], changed:[{id,label,from,to}], moved:[...],
+//           status: { [id]: 'added'|'removed'|'changed'|'moved' } }.
+export function diffTrees(oldTree, curTree) {
+  const index = (root) => {
+    const map = {};
+    const walk = (n, parentId) => {
+      map[n.id] = { node: n, parentId };
+      (n.children || []).forEach((c) => walk(c, n.id));
+    };
+    if (root) walk(root, null);
+    return map;
+  };
+  const oldMap = index(oldTree);
+  const curMap = index(curTree);
+  const norm = (n) => ({ label: (n.label || '').trim(), body: (n.body || '').trim() });
+
+  const added = [], removed = [], changed = [], moved = [];
+  const status = {};
+
+  for (const id of Object.keys(curMap)) {
+    if (!oldMap[id]) { added.push({ id, label: curMap[id].node.label || '(note)' }); status[id] = 'added'; }
+  }
+  for (const id of Object.keys(oldMap)) {
+    const o = oldMap[id];
+    if (!curMap[id]) { removed.push({ id, label: o.node.label || '(note)' }); status[id] = 'removed'; continue; }
+    const a = norm(o.node), b = norm(curMap[id].node);
+    if (a.label !== b.label || a.body !== b.body) {
+      changed.push({ id, label: o.node.label || '(note)', from: a, to: b });
+      status[id] = 'changed';
+    } else if (o.parentId !== curMap[id].parentId) {
+      moved.push({ id, label: o.node.label || '(note)' });
+      status[id] = 'moved';
+    }
+  }
+  return { added, removed, changed, moved, status };
+}
+
 // ── Auto colors: root = soft mauve, each branch a pastel, descendants inherit ─
 export function computeColors(root) {
   const map = { [root.id]: ROOT_NODE };
@@ -105,21 +148,52 @@ export function computeColors(root) {
 }
 
 // ── Horizontal layout (depth → x, leaf bands → y) ───────────────
+// Estimate a node's rendered vertical footprint in pixels so a long body
+// claims more vertical space and stops siblings from stacking on top of it.
+// NB: titles render at fs=32 (see NodeView in app.jsx), bodies at 14.
+const TITLE_FS     = 32;
+const TITLE_LINE   = TITLE_FS * 1.35;   // ~43px per wrapped title line
+const TITLE_PAD    = 32;                // pill padding (padV*padScale, both sides)
+const BODY_LINE_PX = 21;                // body fontSize 14 * lineHeight 1.5
+const BODY_PAD_PX  = 10;                // padding/gap around the body block
+const GAP_PX       = 16;                // breathing room between siblings
+const MIN_NODE_PX  = 56;                // floor for the smallest node
+
+const TITLE_CPL = 12;  // title chars per line  (~10em pill at 32px)
+const BODY_CPL  = 36;  // body  chars per line  (~13em at 14px)
+
+function wrapLines(text, cpl) {
+  return text.split('\n').reduce((s, ln) => s + Math.max(1, Math.ceil(ln.length / cpl)), 0);
+}
+
+function nodeHeightPx(n) {
+  if (!n) return MIN_NODE_PX;
+  const hasLabel = !!(n.label && n.label.trim());
+  const hasBody  = !!(n.body  && n.body.trim());
+  if (!hasLabel && !hasBody) return MIN_NODE_PX;
+  const titleH = hasLabel ? wrapLines(n.label, TITLE_CPL) * TITLE_LINE + TITLE_PAD : 0;
+  const bodyH  = hasBody  ? wrapLines(n.body,  BODY_CPL)  * BODY_LINE_PX + BODY_PAD_PX : 0;
+  return Math.max(MIN_NODE_PX, titleH + bodyH) + GAP_PX;
+}
+
 // `isInline(n)` (optional): nodes that render as compact on-connector text
 // rather than boxes — they take a fraction of the normal horizontal gap.
 export function computeLayout(root, cx, cy, ringGap, isInline) {
   const inline = isInline || (() => false);
   const INLINE_GAP = 0.62; // inline notes nest closer than a full ring step, but clear the parent box
+  const leafGap = ringGap * 0.5;
   function leaves(n) {
     if (!n.children || !n.children.length || n.collapsed) {
-      n._leaves = inline(n) ? 0.55 : 1;
+      const hPx = nodeHeightPx(n);
+      // height directly drives band size — short notes pack tight, long notes
+      // claim more room. No 1-leafGap floor (that forced uniform wide spacing).
+      n._leaves = hPx / leafGap;
       return n._leaves;
     }
     n._leaves = n.children.reduce((s, c) => s + leaves(c), 0);
     return n._leaves;
   }
   leaves(root);
-  const leafGap = ringGap * 0.5;
   const totalH = root._leaves * leafGap;
   const pos = { [root.id]: { x: cx, y: cy, angle: 0, depth: 0 } };
   // x accumulates per-node so inline notes advance less than a full ring step

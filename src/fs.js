@@ -149,3 +149,91 @@ export async function purgeFromTrash(id) {
 export async function emptyTrash() {
   await dbSet(TRASH_KEY, []);
 }
+
+// ── Version history ───────────────────────────────────────────────────────────
+// Saved to the doc's folder under `.versions/<id>/<ts>.json` when a folder is
+// available; otherwise to IndexedDB under `versions:<id>`. Each entry is
+// { ts, label, tree }. Newest first. Capped to keep storage bounded.
+const VERSION_CAP = 100;
+
+async function versionsDir(folder, id, create = false) {
+  const root = await folder.getDirectoryHandle('.versions', { create });
+  return root.getDirectoryHandle(id, { create });
+}
+
+// Returns [{ ts, label }] newest first (no tree payload — cheap to list).
+export async function listVersions(folder, id) {
+  if (folder) {
+    try {
+      const dir = await versionsDir(folder, id, false);
+      const out = [];
+      for await (const entry of dir.values()) {
+        if (entry.kind !== 'file' || !entry.name.endsWith('.json')) continue;
+        try {
+          const file = await entry.getFile();
+          const data = JSON.parse(await file.text());
+          out.push({ ts: data.ts, label: data.label || null });
+        } catch { /* skip bad file */ }
+      }
+      return out.sort((a, b) => b.ts - a.ts);
+    } catch { return []; }
+  }
+  const items = (await dbGet('versions:' + id)) || [];
+  return items.map(({ ts, label }) => ({ ts, label: label || null })).sort((a, b) => b.ts - a.ts);
+}
+
+export async function readVersionTree(folder, id, ts) {
+  if (folder) {
+    const dir = await versionsDir(folder, id, false);
+    const fh = await dir.getFileHandle(`${ts}.json`);
+    const file = await fh.getFile();
+    return JSON.parse(await file.text()).tree;
+  }
+  const items = (await dbGet('versions:' + id)) || [];
+  return (items.find((v) => v.ts === ts) || {}).tree;
+}
+
+// Save a snapshot. Skips if identical to the latest snapshot (dedup for idle
+// auto-save). Returns the saved entry's ts, or null if skipped.
+export async function saveVersion(folder, id, tree, label = null) {
+  const snapshot = JSON.stringify(tree);
+  const ts = Date.now();
+  if (folder) {
+    const dir = await versionsDir(folder, id, true);
+    // dedup against the newest existing version
+    const existing = (await listVersions(folder, id));
+    if (existing.length) {
+      try {
+        const latest = await readVersionTree(folder, id, existing[0].ts);
+        if (JSON.stringify(latest) === snapshot) return null;
+      } catch { /* fall through and save */ }
+    }
+    const fh = await dir.getFileHandle(`${ts}.json`, { create: true });
+    const w = await fh.createWritable();
+    await w.write(JSON.stringify({ ts, label, tree }, null, 2));
+    await w.close();
+    // prune oldest beyond cap
+    const all = await listVersions(folder, id);
+    for (const old of all.slice(VERSION_CAP)) {
+      try { await dir.removeEntry(`${old.ts}.json`); } catch { /* ignore */ }
+    }
+    return ts;
+  }
+  // IndexedDB fallback
+  const items = (await dbGet('versions:' + id)) || [];
+  if (items.length && JSON.stringify(items[items.length - 1].tree) === snapshot) return null;
+  items.push({ ts, label, tree: JSON.parse(snapshot) });
+  while (items.length > VERSION_CAP) items.shift();
+  await dbSet('versions:' + id, items);
+  return ts;
+}
+
+export async function deleteVersionsFor(id, folder) {
+  await dbDel('versions:' + id);
+  if (folder) {
+    try {
+      const root = await folder.getDirectoryHandle('.versions', { create: false });
+      await root.removeEntry(id, { recursive: true });
+    } catch { /* nothing to remove */ }
+  }
+}
