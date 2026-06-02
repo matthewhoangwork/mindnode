@@ -163,29 +163,48 @@ export function Editor({ doc, setTree, onClose }) {
   });
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: BG_CREAM, fontFamily: FONT }}>
-      {/* Toolbar */}
-      <div style={{ height: 52, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 14px',
-        background: 'rgba(251,246,236,0.85)', borderBottom: '1px solid rgba(61,58,55,0.10)', position: 'relative', zIndex: 10 }}>
-        <button onClick={onClose} title="All Mindmaps" style={{
-          display: 'flex', alignItems: 'center', gap: 3, height: 26, padding: '0 8px 0 5px', borderRadius: 7,
-          border: 'none', background: 'transparent', color: 'rgba(61,58,55,0.65)', cursor: 'pointer', fontFamily: FONT, fontSize: 13, fontWeight: 500 }}>
-          <IconBack /> Mindmaps
+    <div style={{ width: '100%', height: '100%', position: 'relative', background: BG_CREAM, fontFamily: FONT, overflow: 'hidden' }}>
+      {/* Floating liquid-glass — left pill */}
+      <div style={{
+        position: 'absolute', top: 14, left: 14, zIndex: 20,
+        display: 'flex', alignItems: 'center', gap: 2,
+        padding: '0 8px', height: 44, borderRadius: 26,
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.18) 100%)',
+        backdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+        WebkitBackdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+        border: '1px solid rgba(255,255,255,0.70)',
+        borderBottom: '1px solid rgba(255,255,255,0.30)',
+        boxShadow: '0 8px 32px rgba(61,58,55,0.12), 0 2px 8px rgba(61,58,55,0.06), inset 0 1.5px 0 rgba(255,255,255,0.80), inset 0 -1px 0 rgba(255,255,255,0.20)',
+      }}>
+        <button onClick={onClose} title="All MindNode" style={{
+          display: 'flex', alignItems: 'center', gap: 3, height: 30, padding: '0 8px 0 6px', borderRadius: 18,
+          border: 'none', background: 'transparent', color: 'rgba(61,58,55,0.75)', cursor: 'pointer',
+          fontFamily: FONT, fontSize: 12.5, fontWeight: 600,
+        }}>
+          <IconBack /> MindNode
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 6 }}>
-          <span style={{ color: 'rgba(61,58,55,0.3)', display: 'flex' }}><IconChevron width="13" height="13" /></span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#3D3A37' }}>{tree.label}</span>
-        </div>
-        <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <TBtn title="Add child (Tab)" onClick={addChild} disabled={!sel}><IconPlus /></TBtn>
-          <TSep />
-          <TBtn title="Panel" active={!!panel} onClick={() => setPanel((p) => (p ? null : 'inspector'))}><IconSidebar /></TBtn>
-        </div>
+        <div style={{ width: 1, height: 16, background: 'rgba(61,58,55,0.14)', margin: '0 3px' }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#3D3A37', padding: '0 6px', maxWidth: 200,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tree.label}</span>
+      </div>
+
+      {/* Floating liquid-glass — right pill */}
+      <div style={{
+        position: 'absolute', top: 14, right: 14, zIndex: 20,
+        display: 'flex', alignItems: 'center',
+        padding: '0 6px', height: 44, borderRadius: 26,
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.18) 100%)',
+        backdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+        WebkitBackdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+        border: '1px solid rgba(255,255,255,0.70)',
+        borderBottom: '1px solid rgba(255,255,255,0.30)',
+        boxShadow: '0 8px 32px rgba(61,58,55,0.12), 0 2px 8px rgba(61,58,55,0.06), inset 0 1.5px 0 rgba(255,255,255,0.80), inset 0 -1px 0 rgba(255,255,255,0.20)',
+      }}>
+        <TBtn title="Panel" active={!!panel} onClick={() => setPanel((p) => (p ? null : 'inspector'))}><IconSidebar /></TBtn>
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex' }}>
         <div ref={canvasRef} onMouseDown={onBgDown}
           style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: pan.current ? 'grabbing' : 'grab',
             background: `${BG_CREAM}`,
@@ -237,7 +256,7 @@ export function Editor({ doc, setTree, onClose }) {
                     overflowWrap: 'break-word', wordBreak: 'break-word',
                     cursor: 'default', zIndex: 3, padding: '5px 11px', borderRadius: 14,
                     background: BG_CREAM, border: 'none',
-                    boxShadow: on ? '0 0 0 3px #7A5C9A' : 'none',
+                    boxShadow: on ? '0 0 0 3px #CF6526' : 'none',
                   }}>{il.body}</div>
               );
             })}
@@ -257,33 +276,45 @@ export function Editor({ doc, setTree, onClose }) {
           </div>
         </div>
 
-        {panel && (
-          <div style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column',
-            background: '#F5EFE3', borderLeft: '1px solid rgba(61,58,55,0.10)' }}>
-            {/* Tabs */}
-            <div style={{ height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
-              padding: '0 10px', borderBottom: '1px solid rgba(61,58,55,0.10)' }}>
-              {[['inspector', 'Inspector'], ['markdown', 'Markdown']].map(([key, label]) => {
-                const on = panel === key;
-                return (
-                  <button key={key} onClick={() => setPanel(key)} style={{
-                    height: 28, padding: '0 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                    fontFamily: FONT, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-                    background: on ? 'rgba(184,164,212,0.30)' : 'transparent',
-                    color: on ? '#7A5C9A' : 'rgba(61,58,55,0.45)', transition: 'all .12s',
-                  }}>{label}</button>
-                );
-              })}
-            </div>
-            {/* Body */}
-            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: panel === 'inspector' ? 'auto' : 'hidden' }}>
-              {panel === 'inspector'
-                ? <Inspector node={selInfo ? selInfo.node : null} depth={selDepth} onSize={setNodeSize} onNodeStyle={setNodeStyle} />
-                : <MarkdownSidebar tree={tree} onTreeChange={(newRoot) => setTree(() => newRoot)} />}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Floating liquid-glass panel */}
+      {panel && (
+        <div style={{
+          position: 'absolute', top: 72, right: 14, bottom: 14, width: 300, zIndex: 15,
+          display: 'flex', flexDirection: 'column', borderRadius: 20,
+          background: 'linear-gradient(160deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.16) 100%)',
+          backdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+          WebkitBackdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+          border: '1px solid rgba(255,255,255,0.70)',
+          borderBottom: '1px solid rgba(255,255,255,0.30)',
+          boxShadow: '0 8px 32px rgba(61,58,55,0.12), 0 2px 8px rgba(61,58,55,0.06), inset 0 1.5px 0 rgba(255,255,255,0.80), inset 0 -1px 0 rgba(255,255,255,0.20)',
+          overflow: 'hidden',
+        }}>
+          {/* Tabs */}
+          <div style={{ height: 46, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
+            padding: '0 10px', borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
+            {[['inspector', 'Inspector'], ['markdown', 'Markdown']].map(([key, label]) => {
+              const on = panel === key;
+              return (
+                <button key={key} onClick={() => setPanel(key)} style={{
+                  height: 28, padding: '0 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  fontFamily: FONT, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                  background: on ? 'rgba(255,255,255,0.45)' : 'transparent',
+                  boxShadow: on ? 'inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 4px rgba(61,58,55,0.08)' : 'none',
+                  color: on ? '#CF6526' : 'rgba(61,58,55,0.45)', transition: 'all .14s',
+                }}>{label}</button>
+              );
+            })}
+          </div>
+          {/* Body */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: panel === 'inspector' ? 'auto' : 'hidden' }}>
+            {panel === 'inspector'
+              ? <Inspector node={selInfo ? selInfo.node : null} depth={selDepth} onSize={setNodeSize} onNodeStyle={setNodeStyle} />
+              : <MarkdownSidebar tree={tree} onTreeChange={(newRoot) => setTree(() => newRoot)} />}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

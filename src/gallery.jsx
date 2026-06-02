@@ -87,17 +87,17 @@ function NewCard({ onNew }) {
   return (
     <button onClick={onNew} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
-        border: `1.5px dashed ${hover ? '#B8A4D4' : 'rgba(61,58,55,0.22)'}`,
+        border: `1.5px dashed ${hover ? '#D97756' : 'rgba(61,58,55,0.22)'}`,
         borderRadius: 16, cursor: 'pointer',
-        background: hover ? 'rgba(184,164,212,0.10)' : 'transparent', fontFamily: FONT,
+        background: hover ? 'rgba(217,119,86,0.10)' : 'transparent', fontFamily: FONT,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
         minHeight: 150 + 49, transition: 'all .14s',
       }}>
-      <div style={{ width: 44, height: 44, borderRadius: '50%', background: hover ? '#B8A4D4' : 'rgba(61,58,55,0.06)',
+      <div style={{ width: 44, height: 44, borderRadius: '50%', background: hover ? '#D97756' : 'rgba(61,58,55,0.06)',
         color: hover ? '#fff' : 'rgba(61,58,55,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .14s' }}>
         <IconPlus width="22" height="22" />
       </div>
-      <span style={{ fontSize: 13.5, fontWeight: 700, color: hover ? '#7A5C9A' : 'rgba(61,58,55,0.65)' }}>New Mindmap</span>
+      <span style={{ fontSize: 13.5, fontWeight: 700, color: hover ? '#CF6526' : 'rgba(61,58,55,0.65)' }}>New Mindmap</span>
     </button>
   );
 }
@@ -112,7 +112,7 @@ function TrashRow({ item, onRestore, onPurge }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: '#3D3A37' }}>{item.tree.label || '(untitled)'}</div>
         <div style={{ fontSize: 11, color: 'rgba(61,58,55,0.45)', marginTop: 2 }}>Deleted · {daysLeft}d left</div>
       </div>
-      <button onClick={() => onRestore(item.id)} style={{ ...btnSm, background: '#B8A4D4', color: '#fff' }}>Restore</button>
+      <button onClick={() => onRestore(item.id)} style={{ ...btnSm, background: '#D97756', color: '#fff' }}>Restore</button>
       <button onClick={() => { if (confirm('Permanently delete?')) onPurge(item.id); }} style={{ ...btnSm, background: 'rgba(61,58,55,0.08)', color: '#B85C5C' }}>Delete</button>
     </div>
   );
@@ -123,54 +123,101 @@ const btnSm = { border: 'none', borderRadius: 7, padding: '5px 11px', fontSize: 
 export function Gallery({ library, onOpen, onNew, onDelete, folderName, onChooseFolder, onChangeFolder, fsError,
   trash, trashOpen, onTrashToggle, onRestore, onPurge, onEmptyTrash }) {
   const [q, setQ] = useState('');
+  const [folderMenuOpen, setFolderMenuOpen] = useState(false);
   const shown = library.filter((d) => d.tree.label.toLowerCase().includes(q.toLowerCase()));
+  const glassStyle = {
+    display: 'flex', alignItems: 'center', gap: 4,
+    padding: '0 8px', height: 44, borderRadius: 26,
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.18) 100%)',
+    backdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+    WebkitBackdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+    border: '1px solid rgba(255,255,255,0.70)',
+    borderBottom: '1px solid rgba(255,255,255,0.30)',
+    boxShadow: '0 8px 32px rgba(61,58,55,0.12), 0 2px 8px rgba(61,58,55,0.06), inset 0 1.5px 0 rgba(255,255,255,0.80), inset 0 -1px 0 rgba(255,255,255,0.20)',
+  };
+  const sep = <div style={{ width: 1, height: 16, background: 'rgba(61,58,55,0.14)', margin: '0 3px' }} />;
+
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: BG_CREAM, fontFamily: FONT }}>
-      {/* toolbar */}
-      <div style={{ height: 52, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 14px',
-        background: 'rgba(251,246,236,0.85)', borderBottom: '1px solid rgba(61,58,55,0.10)' }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#3D3A37' }}>Mindmaps</span>
-        <div style={{ flex: 1 }} />
-        {/* folder */}
-        {folderName
-          ? <button onClick={onChangeFolder} title={`Saving to: ${folderName}`} style={{
-              display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 11px', borderRadius: 9,
-              border: '1px solid rgba(61,58,55,0.15)', background: 'rgba(255,255,255,0.7)', color: '#3D3A37',
-              fontFamily: FONT, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', marginRight: 8,
-            }}>📁 {folderName}</button>
-          : <button onClick={onChooseFolder} title="Choose a folder to save mindmaps" style={{
-              display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 11px', borderRadius: 9,
-              border: '1px dashed rgba(61,58,55,0.30)', background: 'transparent', color: 'rgba(61,58,55,0.6)',
-              fontFamily: FONT, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', marginRight: 8,
-            }}>📁 Choose folder…</button>
-        }
-        {/* trash toggle */}
-        <button onClick={onTrashToggle} title="Trash" style={{
-          display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 11px', borderRadius: 9, marginRight: 8,
-          border: trashOpen ? 'none' : '1px solid rgba(61,58,55,0.15)',
-          background: trashOpen ? 'rgba(184,164,212,0.25)' : 'transparent',
-          color: trashOpen ? '#7A5C9A' : 'rgba(61,58,55,0.6)',
-          fontFamily: FONT, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-        }}>
-          🗑 Trash {trash && trash.length > 0 && <span style={{ background: '#B8A4D4', color: '#fff', borderRadius: 8, padding: '0 5px', fontSize: 11 }}>{trash.length}</span>}
-        </button>
-        {/* search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(61,58,55,0.07)', borderRadius: 9, padding: '5px 11px', width: 180, marginRight: 10 }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative', background: BG_CREAM, fontFamily: FONT, overflow: 'hidden' }}>
+
+      {/* Floating glass — left: brand + search */}
+      <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 20, ...glassStyle }}>
+        <button onClick={() => trashOpen && onTrashToggle()} style={{
+          fontSize: 14, fontWeight: 700, color: '#3D3A37', padding: '0 6px', border: 'none',
+          background: 'transparent', cursor: trashOpen ? 'pointer' : 'default', fontFamily: FONT,
+        }}>MindNode</button>
+        {sep}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 6px' }}>
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="5.5" cy="5.5" r="4" stroke="rgba(61,58,55,0.55)" strokeWidth="1.5"/><path d="M8.5 8.5l3 3" stroke="rgba(61,58,55,0.55)" strokeWidth="1.5" strokeLinecap="round"/></svg>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search"
-            style={{ border: 'none', outline: 'none', background: 'transparent', fontFamily: FONT, fontSize: 13, color: '#3D3A37', width: '100%' }} />
+            style={{ border: 'none', outline: 'none', background: 'transparent', fontFamily: FONT, fontSize: 13, color: '#3D3A37', width: 140 }} />
         </div>
+      </div>
+
+      {/* Floating glass — right: folder + trash + new */}
+      <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 20, ...glassStyle }}>
+        <div style={{ position: 'relative' }}>
+          {folderName
+            ? <button onMouseDown={(e) => e.stopPropagation()} onClick={() => setFolderMenuOpen((o) => !o)} title={`Saving to: ${folderName}`} style={{
+                display: 'flex', alignItems: 'center', gap: 4, height: 30, padding: '0 10px', borderRadius: 18,
+                border: 'none', background: folderMenuOpen ? 'rgba(255,255,255,0.45)' : 'transparent',
+                color: 'rgba(61,58,55,0.75)', fontFamily: FONT, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+              }}>📁 {folderName} ▾</button>
+            : <button onClick={onChooseFolder} title="Choose a folder" style={{
+                display: 'flex', alignItems: 'center', gap: 4, height: 30, padding: '0 10px', borderRadius: 18,
+                border: 'none', background: 'transparent', color: 'rgba(61,58,55,0.55)',
+                fontFamily: FONT, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+              }}>📁 Choose folder…</button>
+          }
+          {folderMenuOpen && (
+            <>
+            <div onMouseDown={(e) => { e.stopPropagation(); setFolderMenuOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 29 }} />
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 30,
+              display: 'flex', flexDirection: 'column', borderRadius: 14, overflow: 'hidden', minWidth: 170,
+              background: 'linear-gradient(160deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.28) 100%)',
+              backdropFilter: 'blur(28px) saturate(2.2)', WebkitBackdropFilter: 'blur(28px) saturate(2.2)',
+              border: '1px solid rgba(255,255,255,0.70)',
+              boxShadow: '0 8px 32px rgba(61,58,55,0.14), inset 0 1.5px 0 rgba(255,255,255,0.80)',
+            }}>
+              <button onClick={() => { setFolderMenuOpen(false); onChooseFolder(); }} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', border: 'none',
+                background: 'transparent', fontFamily: FONT, fontSize: 13, fontWeight: 600,
+                color: '#3D3A37', cursor: 'pointer', textAlign: 'left',
+              }}>📁 Change folder</button>
+              <div style={{ height: 1, background: 'rgba(61,58,55,0.08)' }} />
+              <button onClick={() => { setFolderMenuOpen(false); onChangeFolder(); }} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', border: 'none',
+                background: 'transparent', fontFamily: FONT, fontSize: 13, fontWeight: 600,
+                color: '#B85C5C', cursor: 'pointer', textAlign: 'left',
+              }}>✕ Disconnect folder</button>
+            </div>
+            </>
+          )}
+        </div>
+        {sep}
+        <button onClick={onTrashToggle} title="Trash" style={{
+          display: 'flex', alignItems: 'center', gap: 4, height: 30, padding: '0 10px', borderRadius: 18,
+          border: 'none', background: trashOpen ? 'rgba(255,255,255,0.45)' : 'transparent',
+          boxShadow: trashOpen ? 'inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 4px rgba(61,58,55,0.08)' : 'none',
+          color: trashOpen ? '#CF6526' : 'rgba(61,58,55,0.6)',
+          fontFamily: FONT, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+        }}>
+          🗑
+        </button>
+        {sep}
         <button onClick={onNew} style={{
-          display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 14px', borderRadius: 10, border: 'none',
-          background: '#B8A4D4', color: '#FFFFFF', fontFamily: FONT, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          boxShadow: '0 1px 2px rgba(61,58,55,0.10)',
+          display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 14px', borderRadius: 18, border: 'none',
+          background: 'linear-gradient(135deg, #D97756 0%, #C96A3A 100%)',
+          color: '#fff', fontFamily: FONT, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), 0 2px 8px rgba(207,101,38,0.35)',
         }}>
           <IconPlus width="14" height="14" /> New
         </button>
       </div>
 
       {/* body */}
-      <div style={{ flex: 1, overflowY: 'auto', background: '#F5EFE3', padding: '24px 28px' }}>
+      <div style={{ width: '100%', height: '100%', overflowY: 'auto', background: '#F5EFE3', padding: '80px 28px 24px' }}>
         {trashOpen ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
@@ -188,7 +235,7 @@ export function Gallery({ library, onOpen, onNew, onDelete, folderName, onChoose
         ) : (
           <>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(61,58,55,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
-              {shown.length} {shown.length === 1 ? 'Mindmap' : 'Mindmaps'}
+              {shown.length} {shown.length === 1 ? 'MindNode' : 'MindNode'}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(248px, 1fr))', gap: 22 }}>
               <NewCard onNew={onNew} />

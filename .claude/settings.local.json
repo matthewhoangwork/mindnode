@@ -20,7 +20,8 @@
       "Bash(pnpm add *)",
       "Bash(rtk npx *)",
       "mcp__plugin_context-mode_context-mode__ctx_execute",
-      "Bash(node_modules/.bin/vite build *)"
+      "Bash(node_modules/.bin/vite build *)",
+      "Bash(rtk find *)"
     ]
   }
 }

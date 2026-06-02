@@ -21,7 +21,7 @@ export const SYS_COLORS = {
 };
 
 // Slightly deeper mauve — anchors the root node visually
-export const ROOT_NODE = '#B8A4D4';
+export const ROOT_NODE = '#D97756';
 
 // Branch fills are auto-assigned in this order (root uses ROOT_NODE)
 export const BRANCH_PALETTE = [

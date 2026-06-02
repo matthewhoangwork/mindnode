@@ -117,6 +117,8 @@ function GalleryPage() {
     newMap, deleteMap, restoreMap, purgeMap, emptyTrashFn,
   } = useLib();
 
+  useEffect(() => { document.title = 'MindNode'; }, []);
+
   if (library === null) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -159,6 +161,10 @@ function EditorPage() {
 
   const doc = (library || []).find((d) => d.id === id);
 
+  useEffect(() => {
+    document.title = doc ? `${doc.tree.label} | MindNode` : 'MindNode';
+  }, [doc?.tree.label]);
+
   // Auto-save
   useEffect(() => {
     if (!folder || !doc) return;
@@ -181,7 +187,7 @@ function EditorPage() {
         width: '100%', height: '100%', color: '#3D3A37', fontFamily: 'inherit', gap: 12 }}>
         <div>Mindmap not found.</div>
         <button onClick={() => navigate({ to: '/' })}
-          style={{ border: 'none', background: '#B8A4D4', color: '#fff', padding: '6px 14px',
+          style={{ border: 'none', background: '#D97756', color: '#fff', padding: '6px 14px',
             borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit' }}>Back to gallery</button>
       </div>
     );

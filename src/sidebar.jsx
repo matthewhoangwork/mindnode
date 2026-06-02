@@ -130,7 +130,7 @@ export function MarkdownSidebar({ tree, onTreeChange }) {
           title="Render to mindmap (⌘Enter)"
           style={{
             height: 28, padding: '0 14px', borderRadius: 8, border: 'none',
-            background: dirty ? '#B8A4D4' : 'rgba(61,58,55,0.10)',
+            background: dirty ? '#D97756' : 'rgba(61,58,55,0.10)',
             color: dirty ? '#fff' : 'rgba(61,58,55,0.4)',
             fontFamily: FONT, fontSize: 12.5, fontWeight: 700, cursor: dirty ? 'pointer' : 'default',
             transition: 'all .15s',

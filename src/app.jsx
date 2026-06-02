@@ -36,8 +36,8 @@ export function TBtn({ children, onClick, disabled, title, active }) {
       style={{
         width: 30, height: 26, borderRadius: 9, border: 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: active ? 'rgba(184,164,212,0.30)' : (hover && !disabled ? 'rgba(61,58,55,0.08)' : 'transparent'),
-        color: disabled ? 'rgba(61,58,55,0.30)' : (active ? '#7A5C9A' : 'rgba(61,58,55,0.72)'),
+        background: active ? 'rgba(217,119,86,0.30)' : (hover && !disabled ? 'rgba(61,58,55,0.08)' : 'transparent'),
+        color: disabled ? 'rgba(61,58,55,0.30)' : (active ? '#CF6526' : 'rgba(61,58,55,0.72)'),
         cursor: disabled ? 'default' : 'pointer', transition: 'background .12s', padding: 0,
       }}>{children}</button>
   );
@@ -108,7 +108,7 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
         fontSize: 14, fontWeight: 400, lineHeight: 1.6,
         background: 'rgba(255,255,255,0.92)', borderRadius: 8,
         padding: '8px 10px', boxSizing: 'border-box',
-        border: '1.5px solid rgba(184,164,212,0.6)', minHeight: '3em',
+        border: '1.5px solid rgba(217,119,86,0.6)', minHeight: '3em',
       }}>{toEditText(node.label, node.body)}</div>
   ) : null;
 
@@ -133,8 +133,8 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
         style={{
           ...common, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 * padScale,
           padding: `${3 * padScale}px ${6 * padScale}px`, borderRadius: 12,
-          background: selected ? 'rgba(184,164,212,0.22)' : 'transparent',
-          boxShadow: selected ? '0 0 0 1.5px #7A5C9A' : 'none',
+          background: selected ? 'rgba(217,119,86,0.22)' : 'transparent',
+          boxShadow: selected ? '0 0 0 1.5px #CF6526' : 'none',
           color: depth === 1 ? color : '#3D3A37', fontWeight: depth === 1 ? 700 : 500,
           textShadow: '0 0 4px #FBF6EC, 0 0 4px #FBF6EC, 0 0 4px #FBF6EC',
           textAlign: 'center',
@@ -151,9 +151,9 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
   else                  style = { bg: 'transparent', fg: '#3D3A37', fw: 500, padV: 7,  padH: 14, border: 'none', radius: ORG_RADIUS.leaf };
 
   const ring = selected
-    ? `0 0 0 3px #7A5C9A`
+    ? `0 0 0 3px #CF6526`
     : hover
-      ? `0 0 0 2px rgba(184,164,212,0.7)`
+      ? `0 0 0 2px rgba(217,119,86,0.7)`
       : 'none';
 
   return (
@@ -197,7 +197,7 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
           style={{
             position: 'absolute', right: -18, top: '50%', transform: 'translateY(-50%)',
             width: 24, height: 24, borderRadius: '50%', border: 'none',
-            background: '#B8A4D4', color: '#fff', cursor: 'pointer',
+            background: '#D97756', color: '#fff', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 18, lineHeight: 1, padding: 0, zIndex: 10,
             boxShadow: '0 2px 6px rgba(61,58,55,0.18)',
@@ -208,7 +208,7 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
           style={{
             position: 'absolute', bottom: -18, left: '50%', transform: 'translateX(-50%)',
             width: 24, height: 24, borderRadius: '50%', border: 'none',
-            background: '#B8A4D4', color: '#fff', cursor: 'pointer',
+            background: '#D97756', color: '#fff', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 14, lineHeight: 1, padding: 0, zIndex: 10,
             boxShadow: '0 2px 6px rgba(61,58,55,0.18)',
@@ -259,10 +259,10 @@ function OptionRow({ title, desc, selected, onClick }) {
     <button onClick={onClick} style={{
       display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
       padding: '8px 10px', borderRadius: 10, border: 'none', cursor: 'pointer', marginBottom: 4,
-      background: selected ? 'rgba(184,164,212,0.22)' : 'transparent', fontFamily: FONT,
+      background: selected ? 'rgba(217,119,86,0.22)' : 'transparent', fontFamily: FONT,
     }}>
       <div style={{ width: 16, height: 16, borderRadius: '50%', boxSizing: 'border-box', flexShrink: 0,
-        border: selected ? '5px solid #7A5C9A' : '1.5px solid rgba(61,58,55,0.30)' }} />
+        border: selected ? '5px solid #CF6526' : '1.5px solid rgba(61,58,55,0.30)' }} />
       <div>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#3D3A37' }}>{title}</div>
         {desc && <div style={{ fontSize: 11, color: 'rgba(61,58,55,0.5)', marginTop: 1 }}>{desc}</div>}
