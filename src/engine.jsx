@@ -173,7 +173,10 @@ function nodeHeightPx(n) {
   if (!hasLabel && !hasBody) return MIN_NODE_PX;
   const titleH = hasLabel ? wrapLines(n.label, TITLE_CPL) * TITLE_LINE + TITLE_PAD : 0;
   const bodyH  = hasBody  ? wrapLines(n.body,  BODY_CPL)  * BODY_LINE_PX + BODY_PAD_PX : 0;
-  return Math.max(MIN_NODE_PX, titleH + bodyH) + GAP_PX;
+  const contentH = Math.max(MIN_NODE_PX, titleH + bodyH);
+  // Breathing room scales with the note's height — a tall multi-line note needs
+  // far more clearance than the fixed GAP_PX, or neighbours read as "stacked".
+  return contentH + Math.max(GAP_PX, contentH * 0.28);
 }
 
 // `isInline(n)` (optional): nodes that render as compact on-connector text
@@ -183,14 +186,17 @@ export function computeLayout(root, cx, cy, ringGap, isInline) {
   const INLINE_GAP = 0.62; // inline notes nest closer than a full ring step, but clear the parent box
   const leafGap = ringGap * 0.5;
   function leaves(n) {
+    const ownBand = nodeHeightPx(n) / leafGap; // this node's own box footprint
     if (!n.children || !n.children.length || n.collapsed) {
-      const hPx = nodeHeightPx(n);
       // height directly drives band size — short notes pack tight, long notes
       // claim more room. No 1-leafGap floor (that forced uniform wide spacing).
-      n._leaves = hPx / leafGap;
+      n._leaves = ownBand;
       return n._leaves;
     }
-    n._leaves = n.children.reduce((s, c) => s + leaves(c), 0);
+    // A parent must reserve at least its own (possibly tall) box height, else a
+    // big title note with few/short children overflows onto its siblings.
+    const kidsBand = n.children.reduce((s, c) => s + leaves(c), 0);
+    n._leaves = Math.max(kidsBand, ownBand);
     return n._leaves;
   }
   leaves(root);
