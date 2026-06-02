@@ -114,13 +114,13 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
 
   const titleBlock = hasLabel ? node.label : null;
   const bodyBlock = hasBody ? (
-    <div style={{ whiteSpace: 'pre-wrap', fontWeight: 400, fontSize: 14, color: '#3D3A37' }}>{node.body}</div>
+    <div style={{ whiteSpace: 'pre-wrap', fontWeight: 400, fontSize: 14, lineHeight: 1.5, color: '#3D3A37', textAlign: 'left', width: '100%' }}>{node.body}</div>
   ) : null;
 
   const common = {
     position: 'absolute', left: p.x, top: p.y, transform: 'translate(-50%,-50%)',
     fontFamily: FONT, fontSize: fs, lineHeight: 1.35,
-    display: 'inline-block', width: 'max-content', minWidth: '5em', maxWidth: '10em', hyphens: 'auto',
+    display: 'inline-block', width: 'max-content', minWidth: '5em', maxWidth: hasBody ? '13em' : '10em', hyphens: 'auto',
     cursor: 'default', userSelect: 'none', transition: 'box-shadow .14s ease, transform .14s ease',
     zIndex: selected ? 5 : 2,
   };
@@ -180,8 +180,8 @@ export function NodeView({ node, p, color, selected, editing, onSelect, onStartE
         {/* body — floats below, outside the pill */}
         {bodyBlock && (
           <div style={{
-            fontSize: 14, fontWeight: 400, color: '#3D3A37', textAlign: 'left',
-            overflowWrap: 'break-word', wordBreak: 'break-word',
+            fontSize: 14, fontWeight: 400, lineHeight: 1.5, color: '#3D3A37', textAlign: 'left',
+            overflowWrap: 'break-word', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
             width: '100%', boxSizing: 'border-box',
             textShadow: '0 0 4px #FBF6EC, 0 0 4px #FBF6EC, 0 0 4px #FBF6EC',
           }}>

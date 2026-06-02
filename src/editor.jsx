@@ -207,8 +207,10 @@ export function Editor({ doc, setTree, onClose }) {
             transform: `translate(${view.x}px,${view.y}px) scale(${view.k})`, transformOrigin: '0 0' }}>
             <svg width={VW} height={VH} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none', zIndex: 0 }}>
               <defs>
-                {/* Subtle hand-drawn wobble — applied to branches only */}
-                <filter id="handDrawn" x="-2%" y="-2%" width="104%" height="104%">
+                {/* Subtle hand-drawn wobble — applied to branches only.
+                    Region is in absolute user space so a perfectly horizontal
+                    connector (zero-height bbox) isn't clipped to nothing. */}
+                <filter id="handDrawn" filterUnits="userSpaceOnUse" x="0" y="0" width={VW} height={VH}>
                   <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="2" seed="3" />
                   <feDisplacementMap in="SourceGraphic" scale="2.4" />
                 </filter>
@@ -246,8 +248,9 @@ export function Editor({ doc, setTree, onClose }) {
                   onDoubleClick={(e) => { e.stopPropagation(); setEditing(il.id); }}
                   style={{
                     position: 'absolute', left: il.x, top: il.y, transform: 'translate(-50%,-50%)',
-                    fontFamily: FONT, fontSize: 14, fontWeight: 400, color: '#3D3A37',
-                    maxWidth: 130, textAlign: 'center', whiteSpace: 'pre-wrap',
+                    fontFamily: FONT, fontSize: 14, fontWeight: 400, lineHeight: 1.5, color: '#3D3A37',
+                    maxWidth: 220, textAlign: 'left', whiteSpace: 'pre-wrap',
+                    overflowWrap: 'break-word', wordBreak: 'break-word',
                     cursor: 'default', zIndex: 3, padding: '5px 11px', borderRadius: 14,
                     background: BG_CREAM, border: 'none',
                     boxShadow: on ? '0 0 0 3px #7A5C9A' : 'none',
