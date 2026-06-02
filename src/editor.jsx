@@ -14,7 +14,7 @@ const MM_W = 180, MM_H = 120;
 function EditorMinimap({ tree, pos, colors, view, canvasRef, onNavigate }) {
   const mmRef = useRef(null);
   const dragging = useRef(false);
-  const [hover, setHover] = useState(false);
+  const [open, setOpen] = useState(false);
 
   const edges2 = [];
   walkSubtree(tree, (n) => (n.children || []).forEach((c) => edges2.push([n, c])));
@@ -58,29 +58,29 @@ function EditorMinimap({ tree, pos, colors, view, canvasRef, onNavigate }) {
 
   return (
     <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => { setHover(false); dragging.current = false; }}
       style={{
         position: 'absolute', bottom: 14, left: 14, zIndex: 18,
-        width: hover ? MM_W : 32, height: hover ? MM_H : 32,
-        borderRadius: hover ? 14 : 10,
+        width: open ? MM_W : 32, height: open ? MM_H : 32,
+        borderRadius: open ? 14 : 10,
         overflow: 'hidden',
         background: 'linear-gradient(135deg, rgba(255,255,255,0.40) 0%, rgba(255,255,255,0.15) 100%)',
         backdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
         WebkitBackdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
         border: '1px solid rgba(255,255,255,0.70)',
         borderBottom: '1px solid rgba(255,255,255,0.30)',
-        boxShadow: hover
+        boxShadow: open
           ? '0 8px 32px rgba(61,58,55,0.12), 0 2px 8px rgba(61,58,55,0.06), inset 0 1.5px 0 rgba(255,255,255,0.80)'
           : '0 2px 8px rgba(61,58,55,0.10), inset 0 1px 0 rgba(255,255,255,0.80)',
         transition: 'width .18s ease, height .18s ease, border-radius .18s ease, box-shadow .18s ease',
-        cursor: hover ? 'crosshair' : 'pointer',
       }}>
-      {/* Icon shown when collapsed */}
-      <div style={{
-        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        opacity: hover ? 0 : 1, transition: 'opacity .12s ease', pointerEvents: hover ? 'none' : 'auto',
-      }}>
+      {/* Icon button shown when collapsed */}
+      <div
+        onClick={() => setOpen(true)}
+        style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          opacity: open ? 0 : 1, transition: 'opacity .12s ease', pointerEvents: open ? 'none' : 'auto',
+          cursor: 'pointer',
+        }}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="rgba(61,58,55,0.60)" strokeWidth="1.5" strokeLinecap="round">
           <rect x="1.5" y="1.5" width="4" height="4" rx="1" />
           <rect x="6.5" y="1.5" width="3" height="4" rx="1" />
@@ -93,14 +93,15 @@ function EditorMinimap({ tree, pos, colors, view, canvasRef, onNavigate }) {
           <rect x="10.5" y="10.5" width="4" height="4" rx="1" />
         </svg>
       </div>
-      {/* Minimap content shown on hover */}
+      {/* Minimap content shown when open — click outside closes */}
       <div
         ref={mmRef}
         onMouseDown={(e) => { e.stopPropagation(); dragging.current = true; navigateTo(e); }}
         style={{
           position: 'absolute', inset: 0,
-          opacity: hover ? 1 : 0, transition: 'opacity .15s ease',
-          pointerEvents: hover ? 'auto' : 'none',
+          opacity: open ? 1 : 0, transition: 'opacity .15s ease',
+          pointerEvents: open ? 'auto' : 'none',
+          cursor: 'crosshair',
         }}>
         <svg width={MM_W} height={MM_H} style={{ display: 'block', position: 'absolute', inset: 0 }}>
           <g transform={`scale(${MM_W / VW}, ${MM_H / VH})`}>
@@ -128,6 +129,16 @@ function EditorMinimap({ tree, pos, colors, view, canvasRef, onNavigate }) {
             pointerEvents: 'none',
           }} />
         )}
+        {/* Close button */}
+        <button
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); setOpen(false); dragging.current = false; }}
+          style={{
+            position: 'absolute', top: 5, right: 5, width: 16, height: 16, borderRadius: '50%',
+            border: 'none', background: 'rgba(61,58,55,0.30)', color: '#fff',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 10, lineHeight: 1, padding: 0,
+          }}>×</button>
       </div>
     </div>
   );
