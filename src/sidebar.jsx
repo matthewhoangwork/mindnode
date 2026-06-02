@@ -115,8 +115,7 @@ export function MarkdownSidebar({ tree, onTreeChange }) {
 
   return (
     <div style={{
-      width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column',
-      borderLeft: '1px solid rgba(61,58,55,0.10)',
+      flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
       background: '#F5EFE3', fontFamily: FONT,
     }}>
       {/* header */}
