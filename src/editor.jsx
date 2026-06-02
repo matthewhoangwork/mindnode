@@ -9,6 +9,96 @@ import { MarkdownSidebar } from './sidebar.jsx';
 
 const VW = 2400, VH = 1800, CX = 300, CY = VH / 2, RING = 380;
 
+const MM_W = 180, MM_H = 120;
+
+function EditorMinimap({ tree, pos, colors, view, canvasRef, onNavigate }) {
+  const mmRef = useRef(null);
+  const dragging = useRef(false);
+
+  const edges2 = [];
+  walkSubtree(tree, (n) => (n.children || []).forEach((c) => edges2.push([n, c])));
+
+  // Scale from canvas space → minimap space
+  const kx = MM_W / VW, ky = MM_H / VH;
+
+  // Viewport rect in canvas space
+  const getViewport = useCallback(() => {
+    const el = canvasRef.current;
+    if (!el) return null;
+    const vw = el.clientWidth, vh = el.clientHeight;
+    // canvas coords of the visible corners
+    const x = -view.x / view.k;
+    const y = -view.y / view.k;
+    const w = vw / view.k;
+    const h = vh / view.k;
+    return { x: x * kx, y: y * ky, w: w * kx, h: h * ky };
+  }, [view, canvasRef, kx, ky]);
+
+  const navigateTo = useCallback((e) => {
+    const mm = mmRef.current; if (!mm) return;
+    const rect = mm.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    // center view on clicked point
+    const cx = (mx / kx) * view.k;
+    const cy = (my / ky) * view.k;
+    const el = canvasRef.current; if (!el) return;
+    onNavigate((v) => ({ ...v, x: el.clientWidth / 2 - cx, y: el.clientHeight / 2 - cy }));
+  }, [view.k, kx, ky, canvasRef, onNavigate]);
+
+  useEffect(() => {
+    const onMove = (e) => { if (dragging.current) navigateTo(e); };
+    const onUp = () => { dragging.current = false; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [navigateTo]);
+
+  const vp = getViewport();
+
+  return (
+    <div ref={mmRef} onMouseDown={(e) => { e.stopPropagation(); dragging.current = true; navigateTo(e); }}
+      style={{
+        position: 'absolute', bottom: 14, left: 14, zIndex: 18,
+        width: MM_W, height: MM_H, borderRadius: 14, overflow: 'hidden', cursor: 'crosshair',
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.40) 0%, rgba(255,255,255,0.15) 100%)',
+        backdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+        WebkitBackdropFilter: 'blur(28px) saturate(2.2) brightness(1.08)',
+        border: '1px solid rgba(255,255,255,0.70)',
+        borderBottom: '1px solid rgba(255,255,255,0.30)',
+        boxShadow: '0 8px 32px rgba(61,58,55,0.12), 0 2px 8px rgba(61,58,55,0.06), inset 0 1.5px 0 rgba(255,255,255,0.80)',
+      }}>
+      {/* Scaled-down canvas — same coord space as editor, scaled to MM_W×MM_H */}
+      <svg width={MM_W} height={MM_H} style={{ display: 'block', position: 'absolute', inset: 0 }}>
+        <g transform={`scale(${MM_W / VW}, ${MM_H / VH})`}>
+          {edges2.map(([p, c]) => {
+            const P = pos[p.id], C = pos[c.id]; if (!P || !C) return null;
+            return <line key={c.id} x1={P.x} y1={P.y} x2={C.x} y2={C.y}
+              stroke={BRANCH_INK} strokeWidth={P.depth === 0 ? 10 : 7}
+              strokeOpacity="0.5" strokeLinecap="round" />;
+          })}
+          {Object.entries(pos).map(([id, p]) => {
+            const r = p.depth === 0 ? 22 : p.depth === 1 ? 16 : 10;
+            return <circle key={id} cx={p.x} cy={p.y} r={r} fill={colors[id]} opacity="0.85" />;
+          })}
+        </g>
+      </svg>
+      {/* Viewport rect */}
+      {vp && (
+        <div style={{
+          position: 'absolute',
+          left: Math.max(0, vp.x), top: Math.max(0, vp.y),
+          width: Math.min(MM_W - Math.max(0, vp.x), vp.w),
+          height: Math.min(MM_H - Math.max(0, vp.y), vp.h),
+          border: '1.5px solid rgba(207,101,38,0.75)',
+          borderRadius: 3,
+          background: 'rgba(207,101,38,0.10)',
+          pointerEvents: 'none',
+        }} />
+      )}
+    </div>
+  );
+}
+
 export function Editor({ doc, setTree, onClose }) {
   const tree = doc.tree;
   const [sel, setSel] = useState(tree.id);
@@ -277,6 +367,9 @@ export function Editor({ doc, setTree, onClose }) {
         </div>
 
       </div>
+
+      {/* Floating minimap */}
+      <EditorMinimap tree={tree} pos={pos} colors={colors} view={view} canvasRef={canvasRef} onNavigate={setView} />
 
       {/* Floating liquid-glass panel */}
       {panel && (
