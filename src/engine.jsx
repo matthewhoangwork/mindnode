@@ -140,12 +140,35 @@ export function computeLayout(root, cx, cy, ringGap, isInline) {
 // Control points pull horizontally so the curve leaves the parent
 // heading right and arrives at the child heading right — correct for
 // a left-to-right tree layout.
-export function handDrawnCurve(p, c) {
-  const dx = c.x - p.x;
+// Deterministic pseudo-random in [-1,1] from a seed — stable across renders.
+function seeded(seed) {
+  let h = 2166136261 >>> 0;
+  const s = String(seed);
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return () => {
+    h += 0x6D2B79F5; let t = h;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return (((t ^ (t >>> 14)) >>> 0) / 4294967296) * 2 - 1;
+  };
+}
+
+export function handDrawnCurve(p, c, seed = 0) {
+  const dx = c.x - p.x, dy = c.y - p.y;
+  const len = Math.hypot(dx, dy) || 1;
+  // unit normal — jitter perpendicular to the line so wobble reads as a sketch
+  const nx = -dy / len, ny = dx / len;
+  const rnd = seeded(seed);
+  const j = Math.min(len * 0.06, 7); // jitter amplitude, capped
   const pull = Math.max(Math.abs(dx) * 0.5, 60);
-  const t1x = p.x + pull, t1y = p.y;
-  const t2x = c.x - pull, t2y = c.y;
-  return `M ${p.x} ${p.y} C ${t1x} ${t1y} ${t2x} ${t2y} ${c.x} ${c.y}`;
+  // two control points pushed off the straight line by a little hand-jitter
+  const t1x = p.x + pull + nx * j * rnd(), t1y = p.y + ny * j * rnd();
+  const t2x = c.x - pull + nx * j * rnd(), t2y = c.y + ny * j * rnd();
+  // endpoints nudged slightly too, like a pen not landing exactly
+  const e = Math.min(len * 0.015, 1.6);
+  const sx = p.x + nx * e * rnd(), sy = p.y + ny * e * rnd();
+  const ex = c.x + nx * e * rnd(), ey = c.y + ny * e * rnd();
+  return `M ${sx} ${sy} C ${t1x} ${t1y} ${t2x} ${t2y} ${ex} ${ey}`;
 }
 
 // Stop short of the child node so the arrowhead lands cleanly on its left edge

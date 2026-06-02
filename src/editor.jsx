@@ -2,8 +2,8 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { FONT, BG_CREAM, BRANCH_INK, computeLayout, computeColors, handDrawnCurve, walkSubtree, findNode, cloneTree } from './engine.jsx';
 import {
-  NodeView, Inspector, TBtn, TSep, IconPlus, IconTrash, IconMinus,
-  IconFit, IconRecenter, IconChevron, IconShare, IconBack, IconSidebar,
+  NodeView, Inspector, TBtn, TSep, IconPlus,
+  IconChevron, IconBack, IconSidebar,
 } from './app.jsx';
 import { MarkdownSidebar } from './sidebar.jsx';
 
@@ -13,8 +13,7 @@ export function Editor({ doc, setTree, onClose }) {
   const tree = doc.tree;
   const [sel, setSel] = useState(tree.id);
   const [editing, setEditing] = useState(null);
-  const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [markdownOpen, setMarkdownOpen] = useState(false);
+  const [panel, setPanel] = useState(null); // null | 'inspector' | 'markdown'
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const canvasRef = useRef(null);
   const pan = useRef(null);
@@ -180,19 +179,8 @@ export function Editor({ doc, setTree, onClose }) {
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <TBtn title="Add child (Tab)" onClick={addChild} disabled={!sel}><IconPlus /></TBtn>
-          <TBtn title="Delete (⌫)" onClick={removeNode} disabled={!sel || sel === tree.id}><IconTrash /></TBtn>
           <TSep />
-          <TBtn title="Zoom out" onClick={() => zoom(0.85)}><IconMinus /></TBtn>
-          <div style={{ width: 40, textAlign: 'center', fontSize: 12, color: 'rgba(61,58,55,0.55)', fontVariantNumeric: 'tabular-nums' }}>{Math.round(view.k * 100)}%</div>
-          <TBtn title="Zoom in" onClick={() => zoom(1.18)}><IconPlus /></TBtn>
-          <TBtn title="Fit to view" onClick={fit}><IconFit /></TBtn>
-          <TBtn title="Re-center" onClick={fit}><IconRecenter /></TBtn>
-          <TSep />
-          <TBtn title="Share"><IconShare /></TBtn>
-          <TBtn title="Inspector" active={inspectorOpen} onClick={() => setInspectorOpen((o) => !o)}><IconSidebar /></TBtn>
-          <TBtn title="Markdown" active={markdownOpen} onClick={() => setMarkdownOpen((o) => !o)}>
-            <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M2 4h13M2 8h9M2 12h11"/></svg>
-          </TBtn>
+          <TBtn title="Panel" active={!!panel} onClick={() => setPanel((p) => (p ? null : 'inspector'))}><IconSidebar /></TBtn>
         </div>
       </div>
 
@@ -210,17 +198,13 @@ export function Editor({ doc, setTree, onClose }) {
                 {/* Subtle hand-drawn wobble — applied to branches only.
                     Region is in absolute user space so a perfectly horizontal
                     connector (zero-height bbox) isn't clipped to nothing. */}
-                <filter id="handDrawn" filterUnits="userSpaceOnUse" x="0" y="0" width={VW} height={VH}>
-                  <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="2" seed="3" />
-                  <feDisplacementMap in="SourceGraphic" scale="2.4" />
-                </filter>
                 {/* Simple distinct arrowhead, charcoal ink */}
                 <marker id="arrowInk" viewBox="0 0 10 10" refX="8" refY="5"
                   markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                   <path d="M 0 0 L 10 5 L 0 10 L 2.2 5 Z" fill={BRANCH_INK} />
                 </marker>
               </defs>
-              <g filter="url(#handDrawn)">
+              <g>
                 {edges.map(([p, c]) => {
                   const P = pos[p.id], C = pos[c.id]; if (!P || !C) return null;
                   // offset from node centers to right/left edges — inline notes have
@@ -230,10 +214,10 @@ export function Editor({ doc, setTree, onClose }) {
                   const from = { x: P.x + pHW, y: P.y };
                   const to   = { x: C.x - cHW, y: C.y };
                   return <path key={c.id}
-                    d={handDrawnCurve(from, to)}
+                    d={handDrawnCurve(from, to, c.id)}
                     fill="none" stroke={BRANCH_INK}
                     strokeWidth={P.depth === 0 ? 2.6 : 1.9}
-                    strokeLinecap="round" />;
+                    strokeLinecap="round" strokeLinejoin="round" />;
                 })}
               </g>
             </svg>
@@ -273,14 +257,31 @@ export function Editor({ doc, setTree, onClose }) {
           </div>
         </div>
 
-        {inspectorOpen && (
-          <div style={{ width: 264, flexShrink: 0, background: '#F5EFE3', borderLeft: '1px solid rgba(61,58,55,0.10)', overflowY: 'auto' }}>
-            <Inspector node={selInfo ? selInfo.node : null} depth={selDepth} onSize={setNodeSize}
-              onNodeStyle={setNodeStyle} />
+        {panel && (
+          <div style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column',
+            background: '#F5EFE3', borderLeft: '1px solid rgba(61,58,55,0.10)' }}>
+            {/* Tabs */}
+            <div style={{ height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
+              padding: '0 10px', borderBottom: '1px solid rgba(61,58,55,0.10)' }}>
+              {[['inspector', 'Inspector'], ['markdown', 'Markdown']].map(([key, label]) => {
+                const on = panel === key;
+                return (
+                  <button key={key} onClick={() => setPanel(key)} style={{
+                    height: 28, padding: '0 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    fontFamily: FONT, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                    background: on ? 'rgba(184,164,212,0.30)' : 'transparent',
+                    color: on ? '#7A5C9A' : 'rgba(61,58,55,0.45)', transition: 'all .12s',
+                  }}>{label}</button>
+                );
+              })}
+            </div>
+            {/* Body */}
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: panel === 'inspector' ? 'auto' : 'hidden' }}>
+              {panel === 'inspector'
+                ? <Inspector node={selInfo ? selInfo.node : null} depth={selDepth} onSize={setNodeSize} onNodeStyle={setNodeStyle} />
+                : <MarkdownSidebar tree={tree} onTreeChange={(newRoot) => setTree(() => newRoot)} />}
+            </div>
           </div>
-        )}
-        {markdownOpen && (
-          <MarkdownSidebar tree={tree} onTreeChange={(newRoot) => setTree(() => newRoot)} />
         )}
       </div>
     </div>
