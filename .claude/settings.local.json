@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_context-mode_context-mode__ctx_fetch_and_index",
+      "Bash(rtk ls *)",
+      "mcp__plugin_context-mode_context-mode__ctx_search",
+      "Read(//private/tmp/**)",
+      "Bash(rtk curl *)",
+      "Bash(rm -rf mindmap_extracted)",
+      "Bash(mkdir mindmap_extracted)",
+      "Bash(tar -xf mindmap_design.extracted -C mindmap_extracted)",
+      "mcp__plugin_context-mode_context-mode__ctx_execute_file",
+      "Bash(rtk pnpm *)",
+      "Bash(pnpm build *)",
+      "Bash(rtk grep *)",
+      "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+      "Bash(pnpm dev *)",
+      "Bash(rtk read *)",
+      "mcp__plugin_context-mode_context-mode__ctx_index",
+      "Bash(pnpm add *)",
+      "Bash(rtk npx *)",
+      "mcp__plugin_context-mode_context-mode__ctx_execute"
+    ]
+  }
+}
